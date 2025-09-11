@@ -13,9 +13,9 @@ win = pygame.display.set_mode((WIN_WIDTH, WIN_HEIGHT))
 pygame.display.set_caption("Flappy Bird")
 clock = pygame.time.Clock()
 
-BIRD_IMGS = [pygame.transform.scale2x(pygame.image.load(os.path.join("imgs", "bird1.png")).convert()),
-    pygame.transform.scale2x(pygame.image.load(os.path.join("imgs", "bird2.png")).convert()),
-    pygame.transform.scale2x(pygame.image.load(os.path.join("imgs", "bird3.png")).convert())]
+BIRD_IMGS = [pygame.transform.scale2x(pygame.image.load(os.path.join("imgs", "bird3.png")).convert_alpha()),
+    pygame.transform.scale2x(pygame.image.load(os.path.join("imgs", "bird2.png")).convert_alpha()),
+    pygame.transform.scale2x(pygame.image.load(os.path.join("imgs", "bird1.png")).convert_alpha())]
 
 PIPE_IMG = pygame.transform.scale2x(pygame.image.load(os.path.join("imgs", "pipe.png")).convert())
 PIPE_IMG180 = pygame.transform.flip(PIPE_IMG, False, True)
@@ -24,7 +24,6 @@ BG_IMG = pygame.transform.scale(pygame.image.load(os.path.join("imgs", "bg.png")
 
 class Bird:
     IMGS = BIRD_IMGS
-
     def __init__(self, x, y):
         self.x = x
         self.y = y
@@ -32,6 +31,7 @@ class Bird:
         self.vel = 0
         self.bird_rect = self.IMGS[0].get_rect(center = (self.x, self.y))
         self.alive = True
+        self.flap_count = 0
 
     def jump(self):
         self.vel = -6
@@ -41,16 +41,20 @@ class Bird:
         self.vel += self.g
 
         self.bird_rect.y = self.y
-        win.blit(self.IMGS[0], self.bird_rect)
+        bird = self.rotate()
+        win.blit(bird, self.bird_rect)
 
     def check_collision(self, pipes):
-        if self.bird_rect.bottom >= 900:
+        if self.bird_rect.bottom >= 900 or self.bird_rect.top <= 0 :
             self.alive = False
         
         for pipe in pipes:
             if self.bird_rect.colliderect(pipe.pipe_rect_bot) or self.bird_rect.colliderect(pipe.pipe_rect_top):
                 self.alive = False
 
+    def rotate(self):
+        new_bird = pygame.transform.rotozoom(self.IMGS[self.flap_count], -self.vel * 3, 1)
+        return new_bird
 
 class Pipe:
     IMG_BOT = PIPE_IMG
@@ -58,7 +62,7 @@ class Pipe:
     
     def __init__(self):
         self.x = WIN_WIDTH
-        self.gap_center = random.randint(300, 700)
+        self.gap_center = random.randint(200, 700)
         self.gap_size = 300
         self.y = self.gap_center - (self.gap_size / 2)
         self.y2 = self.gap_center + (self.gap_size / 2)
@@ -77,6 +81,7 @@ class Game:
         self.floor_x = 0
         self.bird = Bird(100, 512)
         self.spwan_pipe = pygame.USEREVENT
+        self.birdflap = pygame.USEREVENT + 1
         self.pipes = []
 
     def draw_floor(self):
@@ -89,29 +94,37 @@ class Game:
     def game_loop(self):
         
         pygame.time.set_timer(self.spwan_pipe, 2400)
+        pygame.time.set_timer(self.birdflap, 200)   
 
-        while self.bird.alive is True:
+        while True:  
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
 
                 if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_SPACE:
+                    if event.key == pygame.K_SPACE:   
                         self.bird.jump()
-
+                    if event.key == pygame.K_SPACE and self.bird.alive == False:
+                        self.bird = Bird(100, 512)
+                        self.pipes = []
+                    
                 if event.type == self.spwan_pipe:
                     self.pipes.append(Pipe())
                     if len(self.pipes) > 3:
                         self.pipes.pop(0)
-                    
+
+                if event.type == self.birdflap:
+                    self.bird.flap_count = (self.bird.flap_count + 1) % 3
 
             win.blit(BG_IMG, (0, 0))
-            for pipe in self.pipes:
-                pipe.draw()
+            if self.bird.alive:
+                self.bird.draw()
+                self.bird.check_collision(self.pipes)
+                for pipe in self.pipes:
+                    pipe.draw()
+
             self.draw_floor()
-            self.bird.draw()
-            self.bird.check_collision(self.pipes)
             clock.tick(120)
             pygame.display.update()
 
