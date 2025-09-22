@@ -34,21 +34,36 @@ class Bird:
         self.flap_count = 0
 
     def jump(self):
+        """
+        Make the bird jump by setting upward velocity.
+        """
 
         self.vel = -6
 
     def draw(self):
+        """
+        Draw the bird on the game window with rotation.
+        """
 
-        self.bird_rect.y = self.y
         bird = self.rotate()
         WIN.blit(bird, self.bird_rect)
     
     def move(self):
+        """
+        Update bird position based on gravity and velocity.
+        """
 
         self.vel += self.g
-        self.y += self.vel  
+        self.y += self.vel
+        self.bird_rect.centery = self.y  
 
     def check_collision(self, pipes):
+        """
+        Check if bird collides with pipes or boundaries.
+
+        Parameters:
+        pipes (list): List of Pipe objects to check collision against.
+        """
 
         if self.bird_rect.bottom >= 900 or self.bird_rect.top <= 0:
             self.alive = False
@@ -58,6 +73,12 @@ class Bird:
                 self.alive = False
 
     def rotate(self):
+        """
+        Rotate bird based on velocity for more realistic animation.
+
+        Returns:
+        pygame.Surface: Rotated bird image
+        """
 
         new_bird = pygame.transform.rotozoom(self.imgs [self.flap_count], -self.vel * 3, 1)
         return new_bird
@@ -76,6 +97,9 @@ class Pipe:
         self.pipe_rect_top = self.img_top .get_rect(x = self.x, bottom = self.y)
 
     def draw(self):
+        """
+        Draw the pipe pair and move them leftward.
+        """
 
         WIN.blit(self.img_bot, self.pipe_rect_bot)
         WIN.blit(self.img_top, self.pipe_rect_top)
@@ -93,16 +117,23 @@ class Game:
         self.birdflap = pygame.USEREVENT + 1
         self.pipes = []
         self.clock = pygame.time.Clock()
-        self.test = 0
+        self.first_run = True
         self.pipe_idx = 0
+        self.train = False
 
     def draw_score(self):
+        """
+        Draw the score during the game
+        """
 
         score = self.score_font.render(f"{self.score}", True, (255, 255, 255))
         score_rect = score.get_rect(center = (WIN_WIDTH / 2, 100))
         WIN.blit(score, score_rect)
 
     def draw_game_over(self):
+        """
+        Draw the game over screen.
+        """
 
         score = self.score_font.render(f"Score: {self.score}", True, (255, 255, 255))
         score_rect = score.get_rect(center = (WIN_WIDTH / 2, 100))
@@ -116,6 +147,9 @@ class Game:
         WIN.blit(self.start_img, start_img_rect)
 
     def draw_floor(self):
+        """
+        Draw the floor and move it leftward so it looks like the bird is moving.
+        """
 
         if self.floor_x <= -WIN_WIDTH:
             self.floor_x = 0
@@ -125,6 +159,16 @@ class Game:
 
     def game_loop(self, genomes, config):
 
+        """
+        Main game loop for Flappy Bird using NEAT.
+
+        Parameters:
+        genomes (list): List of genomes to test.
+        config (neat.config.Config): NEAT config object.
+
+        Returns:
+        None
+        """
         for _, g in genomes:
             net = neat.nn.FeedForwardNetwork.create(g, config)
             self.birds.append(Bird(100, 512))
@@ -132,20 +176,22 @@ class Game:
             self.ge.append(g)
             self.nets.append(net)
 
+        if len(self.birds) > 1:
+            self.train = True
+
         pygame.time.set_timer(self.spwan_pipe, 2400)
         pygame.time.set_timer(self.birdflap, 100)   
 
         while True:  
-            if self.test == 0:
+            if self.first_run == True:
                 self.pipes.append(Pipe())
-                self.test = 1
+                self.first_run = False
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     pygame.quit()
                     sys.exit()
                     
                 if event.type == self.spwan_pipe:
-                    self.test = 1
                     self.pipes.append(Pipe())
                     if len(self.pipes) > 3:
                         self.pipes.pop(0)
@@ -164,8 +210,9 @@ class Game:
             for i, bird in enumerate(self.birds):
                     bird.move()
                     self.ge[i].fitness += 0.1
-                    output = self.nets[i].activate((bird.y, bird.vel, abs(bird.y - self.pipes[self.pipe_idx].pipe_rect_bot.y), abs(bird.y - self.pipes[self.pipe_idx].pipe_rect_top.y)))
-
+                    output = self.nets[i].activate((bird.y, bird.vel, self.pipes[self.pipe_idx].pipe_rect_top.y, 
+                                                    self.pipes[self.pipe_idx].pipe_rect_bot.y,
+                                                    self.pipes[self.pipe_idx].pipe_rect_top.x - bird.x))
                     if output[0] > 0.5:
                         bird.jump()
 
@@ -173,6 +220,11 @@ class Game:
             for i,bird in reversed(list(enumerate(self.birds))):
                     bird.draw()
                     bird.check_collision(self.pipes)
+                    if self.ge[i].fitness > 1001 and self.train == True:
+                        bird.alive = False
+                    if bird.alive == False and self.train == False:
+                        print(f"Bird died. Fitness: {self.ge[i].fitness}")
+                        
                     if bird.alive == False:
                         self.ge[i].fitness -= 1
                         self.birds.pop(i)
@@ -185,7 +237,7 @@ class Game:
 
             if len(self.birds) == 0:
                 self.pipes = []
-                self.test = 0
+                self.first_run = True
                 break
 
             self.clock.tick(120)
