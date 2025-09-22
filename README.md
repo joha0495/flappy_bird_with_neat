@@ -100,11 +100,6 @@ The AI receives 5 pieces of information:
 - **-1** upon death
 - Training stops when fitness > 1000
 
-
-## License
-
-This project is created for educational purposes. Graphics assets are not included in the repository and must be obtained separately.
-
 ## References
 
 - [NEAT-Python Documentation](https://neat-python.readthedocs.io/)
